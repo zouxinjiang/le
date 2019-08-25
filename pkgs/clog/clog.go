@@ -1,6 +1,7 @@
 package clog
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,48 +15,50 @@ import (
 
 //实现日志输出的结构体
 type Clog struct {
-	prefix  string
-	w       io.Writer
-	level   LoggerLevel
-	format  string
-	caller  int
-	support map[string]FormatFunc
+	prefix     string
+	w          io.Writer
+	level      LogLevel
+	format     string
+	caller     int
+	dataFormat DataFormat
+	support    map[string]FormatFunc
 }
 
 var exp = regexp.MustCompile(`\$([a-zA-Z0-9_]+)`)
+var dataexp = regexp.MustCompile(`\$\{data\}`)
 var support = map[string]FormatFunc{
-	"fn": func(level LoggerLevel, skip int) string {
+	"fn": func(level LogLevel, skip int) string {
 		fn, _, _, _ := runtime.Caller(skip)
 		return path.Base(runtime.FuncForPC(fn).Name())
 	},
-	"FN": func(level LoggerLevel, skip int) string {
+	"FN": func(level LogLevel, skip int) string {
 		fn, _, _, _ := runtime.Caller(skip)
 		return runtime.FuncForPC(fn).Name()
 	},
-	"ln": func(level LoggerLevel, skip int) string {
+	"ln": func(level LogLevel, skip int) string {
 		_, _, ln, _ := runtime.Caller(skip)
 		return fmt.Sprintf("%d", ln)
 	},
-	"t": func(level LoggerLevel, skip int) string {
+	"t": func(level LogLevel, skip int) string {
 		return time.Now().Format("2006-01-02 03:04:05")
 	},
-	"T": func(level LoggerLevel, skip int) string {
+	"T": func(level LogLevel, skip int) string {
 		return time.Now().Format("2006-01-02 15:04:05")
 	},
-	"f": func(level LoggerLevel, skip int) string {
+	"f": func(level LogLevel, skip int) string {
 		_, f, _, _ := runtime.Caller(skip)
 		return path.Base(f)
 	},
-	"F": func(level LoggerLevel, skip int) string {
+	"F": func(level LogLevel, skip int) string {
 		_, f, _, _ := runtime.Caller(skip)
 		return f
 	},
-	"l": func(level LoggerLevel, skip int) string {
+	"l": func(level LogLevel, skip int) string {
 		return fmt.Sprintf("%s", level)
 	},
 }
 
-func (c *Clog) parseFormat(lvl LoggerLevel) {
+func (c *Clog) parseFormat(lvl LogLevel) {
 
 	//取默认函数，但是优先级是结构体内部的函数优先于默认的函数
 	var supports = make(map[string]FormatFunc, 0)
@@ -84,63 +87,142 @@ func (c *Clog) parseFormat(lvl LoggerLevel) {
 	c.prefix += " " + tmp + " "
 }
 
-func (c *Clog) SetShowLevel(level LoggerLevel) {
+func (c *Clog) SetShowLevel(level LogLevel) {
 	c.level = level
 }
 
-func (c Clog) Println(level LoggerLevel, v ...interface{}) {
+func (c Clog) Println(level LogLevel, v ...interface{}) {
 	if level&c.level == level {
 		c.parseFormat(level)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintln(c.w, v...)
+
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v", t)
+			}
+		}
+
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		data = data + "\n"
+		c.w.Write([]byte(data))
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprintln(c.w, v...)
 	}
 }
 
-func (c Clog) Print(level LoggerLevel, v ...interface{}) {
+func (c Clog) Print(level LogLevel, v ...interface{}) {
 	if level&c.level == level {
 		c.parseFormat(level)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprint(c.w, v...)
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v", t)
+			}
+		}
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		c.w.Write([]byte(data))
+
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprint(c.w, v...)
 	}
 }
 
-func (c Clog) Printf(level LoggerLevel, format string, v ...interface{}) {
+func (c Clog) Printf(level LogLevel, format string, v ...interface{}) {
 	if level&c.level == level {
 		c.parseFormat(level)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintf(c.w, format, v...)
+		data := c.prefix + fmt.Sprintf(format, v...)
+		c.w.Write([]byte(data))
 	}
 }
 
 func (c Clog) Info(v ...interface{}) {
 	if Lvl_Info&c.level == Lvl_Info {
 		c.parseFormat(Lvl_Info)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintln(c.w, v...)
+
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v ", t)
+			}
+		}
+
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		data = data + "\n"
+		c.w.Write([]byte(data))
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprintln(c.w, v...)
 	}
 }
 
 func (c Clog) Warning(v ...interface{}) {
 	if Lvl_Warning&c.level == Lvl_Warning {
 		c.parseFormat(Lvl_Warning)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintln(c.w, v...)
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v ", t)
+			}
+		}
+
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		data = data + "\n"
+		c.w.Write([]byte(data))
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprintln(c.w, v...)
 	}
 }
 
 func (c Clog) Error(v ...interface{}) {
 	if Lvl_Error&c.level == Lvl_Error {
 		c.parseFormat(Lvl_Error)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintln(c.w, v...)
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v ", t)
+			}
+		}
+
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		data = data + "\n"
+		c.w.Write([]byte(data))
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprintln(c.w, v...)
 	}
 }
 
 func (c Clog) Debug(v ...interface{}) {
 	if Lvl_Debug&c.level == Lvl_Debug {
 		c.parseFormat(Lvl_Debug)
-		fmt.Fprint(c.w, c.prefix)
-		fmt.Fprintln(c.w, v...)
+		var data = ""
+		if c.dataFormat == FMT_Json {
+			tmp, _ := json.Marshal(v)
+			data = string(tmp)
+		} else {
+			for _, t := range v {
+				data += fmt.Sprintf("%v ", t)
+			}
+		}
+
+		data = dataexp.ReplaceAllString(c.prefix, data)
+		data = data + "\n"
+		c.w.Write([]byte(data))
+		//fmt.Fprint(c.w, c.prefix)
+		//fmt.Fprintln(c.w, v...)
 	}
 }
 
@@ -198,23 +280,23 @@ func (s innerSort) Swap(i, j int) {
 var dfLog = Clog{
 	w:      os.Stdout,
 	level:  Lvl_Warning | Lvl_Info,
-	format: "[$l] $T file:$f line:$ln func:$fn",
+	format: "[$l] $T file:$f line:$ln func:$fn ${data}",
 	caller: 1,
 }
 
-func SetShowLevel(level LoggerLevel) {
+func SetShowLevel(level LogLevel) {
 	dfLog.SetShowLevel(level)
 }
 
-func Println(level LoggerLevel, v ...interface{}) {
+func Println(level LogLevel, v ...interface{}) {
 	dfLog.Println(level, v...)
 }
 
-func Print(level LoggerLevel, v ...interface{}) {
+func Print(level LogLevel, v ...interface{}) {
 	dfLog.Print(level, v...)
 }
 
-func Printf(level LoggerLevel, format string, v ...interface{}) {
+func Printf(level LogLevel, format string, v ...interface{}) {
 	dfLog.Printf(level, format, v...)
 }
 

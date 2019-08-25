@@ -93,6 +93,10 @@ func ConfigItemWithError(key string) (string, error) {
 	return getConfigItem(key, appconfig)
 }
 
+func GetConfigItem(key string, conf interface{}) (data string, err error) {
+	return getConfigItem(key, conf)
+}
+
 func getConfigItem(key string, conf interface{}) (data string, err error) {
 	defer func() {
 		if err1 := recover(); err1 != nil {

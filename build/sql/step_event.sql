@@ -1,0 +1,4 @@
+CREATE TABLE "step_event"(
+	stepid INTEGER REFERENCES "step"(id) ON DELETE CASCADE,
+	eventid INTEGER REFERENCES "event"(id) ON DELETE CASCADE
+);
