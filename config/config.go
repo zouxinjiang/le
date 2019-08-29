@@ -2,10 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/zouxinjiang/le/pkgs/config"
 	"io/ioutil"
 	"os"
-
-	"github.com/zouxinjiang/le/pkgs/config"
+	"path"
 )
 
 var defaultFileConfig = FileConfig{
@@ -37,10 +38,12 @@ var appconf = AppConfig{
 }
 
 func Init() error {
+	reloadConfig()
 	fconf, err := ReadConfig()
 	if os.IsNotExist(err) {
 		//文件不存在，则写一次文件
-		_ = WriteConfig(appconf.FileConfig)
+		err := WriteConfig(appconf.FileConfig)
+		fmt.Println(err)
 	}
 	if err != nil {
 		return err
@@ -50,20 +53,17 @@ func Init() error {
 	return nil
 }
 
-//热加载配置文件
-func reloadConfig() {
-
-}
-
 // 写配置
 func WriteConfig(fconf FileConfig) error {
 	fpath := GetConfig("MemoryConfig.AppPath") + "/" + GetConfig("MemoryConfig.ConfigFileName")
+	_ = os.MkdirAll(path.Dir(fpath), 0777)
 	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	tmp, _ := json.Marshal(fconf)
+	tmp, err := json.MarshalIndent(fconf, "", "\t")
+	fmt.Println()
 	_, _ = f.Write(tmp)
 	return f.Sync()
 }
@@ -71,7 +71,7 @@ func WriteConfig(fconf FileConfig) error {
 // 读配置
 func ReadConfig() (fconf FileConfig, err error) {
 	fpath := GetConfig("MemoryConfig.AppPath") + "/" + GetConfig("MemoryConfig.ConfigFileName")
-	f, err := os.OpenFile(fpath, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(fpath, os.O_RDWR, 0666)
 	if err != nil {
 		return defaultFileConfig, err
 	}
