@@ -16,6 +16,42 @@ type CError struct {
 	Params     map[string]interface{} `json:"-"`
 }
 
+func NewJsonError(code ErrorCode) *CError {
+	return &CError{
+		format:     ErrFmt_Json,
+		ErrCode:    code,
+		ErrMessage: code.ErrorMessage(),
+		Params:     code.DefaultParams(),
+	}
+}
+
+func NewPlainError(code ErrorCode) *CError {
+	return &CError{
+		format:     ErrFmt_Plain,
+		ErrCode:    code,
+		ErrMessage: code.ErrorMessage(),
+		Params:     code.DefaultParams(),
+	}
+}
+
+func NewJsonErrorWithParams(code ErrorCode, params map[string]interface{}) *CError {
+	return &CError{
+		format:     ErrFmt_Json,
+		ErrCode:    code,
+		ErrMessage: code.ErrorMessage(),
+		Params:     params,
+	}
+}
+
+func NewPlainErrorWithParams(code ErrorCode, params map[string]interface{}) *CError {
+	return &CError{
+		format:     ErrFmt_Plain,
+		ErrCode:    code,
+		ErrMessage: code.ErrorMessage(),
+		Params:     params,
+	}
+}
+
 func (ce CError) Error() string {
 	if ce.ErrCode == nil {
 		return ""

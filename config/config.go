@@ -15,6 +15,7 @@ var defaultFileConfig = FileConfig{
 		Port:    80,
 	},
 	DatabaseConfig: DatabaseConfig{
+		Debug:    false,
 		Host:     "127.0.0.1",
 		Port:     5432,
 		Database: "le",

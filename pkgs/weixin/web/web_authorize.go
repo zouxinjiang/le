@@ -8,13 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/zouxinjiang/le/pkgs/clog"
+	"github.com/zouxinjiang/le/pkgs/weixin/lib"
 	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
-
-	"cooker/pkgs/clog"
-	"cooker/pkgs/weixin/lib"
 )
 
 type WebAuthorize struct {

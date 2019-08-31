@@ -23,6 +23,7 @@ type WebConfig struct {
 }
 
 type DatabaseConfig struct {
+	Debug    bool   `json:"Debug"`
 	Host     string `json:"Host"`
 	Port     int    `json:"Port"`
 	Database string `json:"Database"`
