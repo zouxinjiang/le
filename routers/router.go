@@ -1,8 +1,9 @@
 package routers
 
 import (
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/zouxinjiang/le/controllers"
+	"github.com/zouxinjiang/le/middlewares/logincheck"
 	"github.com/zouxinjiang/le/modules"
 )
 
@@ -13,7 +14,8 @@ func Init(e *echo.Echo) {
 	registerModule(commonCtl, appConfCtl)
 
 	e.GET("/Common/WeChat/ApiCheck", commonCtl.WeiXinApiCheck)
-	e.GET("/Config/AppConfig", appConfCtl.GetAppConfig)
+	e.GET("/Config/AppConfig", appConfCtl.GetAppConfig, logincheck.LoginCheckMiddle)
+	e.PATCH("/Config/AppConfig", appConfCtl.SetAppConfig, logincheck.LoginCheckMiddle)
 
 }
 

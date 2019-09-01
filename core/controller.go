@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/zouxinjiang/le/types"
 	"net/http"
 )

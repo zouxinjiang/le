@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/zouxinjiang/le/config"
 	"github.com/zouxinjiang/le/core"
 	"github.com/zouxinjiang/le/pkgs/cerror"

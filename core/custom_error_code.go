@@ -51,16 +51,16 @@ var (
 	}
 	ErrCode_RecordNotExist = CustomErrorCode{
 		Code:    "RecordNotExist",
-		Message: "record ${field} not exist",
+		Message: "record ${record} not exist",
 		Params: map[string]interface{}{
-			"field": "",
+			"record": "",
 		},
 	}
 	ErrCode_RecordExisted = CustomErrorCode{
 		Code:    "RecordExisted",
-		Message: "record ${field} has existed",
+		Message: "record ${record} has existed",
 		Params: map[string]interface{}{
-			"field": "",
+			"record": "",
 		},
 	}
 	ErrCode_Unknown = CustomErrorCode{

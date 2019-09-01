@@ -2,11 +2,12 @@ package controllers
 
 import (
 	"encoding/json"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/zouxinjiang/le/api"
 	"github.com/zouxinjiang/le/core"
 	"github.com/zouxinjiang/le/models"
 	"github.com/zouxinjiang/le/pkgs/cerror"
+	"github.com/zouxinjiang/le/pkgs/clog"
 	"github.com/zouxinjiang/le/pkgs/constraint"
 )
 
@@ -55,11 +56,49 @@ func (self AppConfController) GetAppConfig(c echo.Context) error {
 
 func (self AppConfController) SetAppConfig(c echo.Context) error {
 	var params = struct {
-		Name  string `json:"Name" form:"Name" query:"Name"`
-		Value string `json:"Value" form:"Value" query:"Value"`
+		Name       string `json:"Name" form:"Name" query:"Name"`
+		Value      string `json:"Value" form:"Value" query:"Value"`
+		NameValues string `json:"NameValues" form:"NameValues" query:"NameValues"`
 	}{}
 	if err := c.Bind(&params); err != nil {
+		clog.Println(clog.Lvl_Info, err)
 		return cerror.NewJsonError(core.ErrCode_InvalidParams)
 	}
-	return nil
+	var tmp = []struct {
+		Name  string `json:"Name"`
+		Value string `json:"Value"`
+	}{}
+	appconfApi := api.AppConfApi{}
+	var inner = []api.InnerAppConf{}
+	var vals = []string{}
+	if params.NameValues != "" {
+		if err := json.Unmarshal([]byte(params.NameValues), &tmp); err != nil {
+			return cerror.NewJsonErrorWithParams(core.ErrCode_InvalidParam, map[string]interface{}{
+				"field":  "NameValues",
+				"reason": `value must json object string {"Name":"","Value":""}`,
+			})
+		}
+		var names = []string{}
+		for _, v := range tmp {
+			names = append(names, v.Name)
+			if appconfApi.IsInnerAppConf(v.Value) {
+				vals = append(vals, v.Value)
+			}
+		}
+		_, inner = appconfApi.FilterInnerAppConf(names)
+	} else {
+		if appconfApi.IsInnerAppConf(params.Name) {
+			inner = append(inner, api.InnerAppConf(params.Name))
+			vals = append(vals, params.Value)
+		}
+	}
+	var kv = map[api.InnerAppConf]string{}
+	for i, item := range inner {
+		kv[item] = vals[i]
+	}
+	err := appconfApi.SetBatch(kv)
+	if err != nil {
+		return err
+	}
+	return self.RespJson(c, nil)
 }

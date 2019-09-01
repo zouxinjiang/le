@@ -8,6 +8,8 @@ type AppConfig struct {
 type MemoryConfig struct {
 	AppPath        string // app根目录
 	ConfigFileName string //配置文件名
+	EncryptKey     string // 加密/混淆密码
+	LoginKey       string // 验证登陆信息的key。 登陆session的key和token认证的key
 }
 
 type FileConfig struct {

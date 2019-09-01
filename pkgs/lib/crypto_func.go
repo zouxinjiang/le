@@ -1,7 +1,9 @@
 package lib
 
 import (
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 )
 
@@ -21,4 +23,20 @@ func Hex(data []byte) string {
 
 func Sha1HexString(data string) string {
 	return Hex(Sha1([]byte(data)))
+}
+
+func Sha256(data []byte) []byte {
+	sha := sha256.New()
+	sha.Write(data)
+	return sha.Sum(nil)
+}
+
+func Hmac256(data []byte, key []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write(data)
+	return h.Sum(nil)
+}
+
+func Hmac256X(data string, key string) string {
+	return Hex(Hmac256([]byte(data), []byte(key)))
 }

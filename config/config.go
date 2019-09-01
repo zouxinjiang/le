@@ -37,6 +37,8 @@ var appconf = AppConfig{
 	MemoryConfig: MemoryConfig{
 		AppPath:        appBase,
 		ConfigFileName: "/config/config.json",
+		EncryptKey:     "life editor",
+		LoginKey:       "LE",
 	},
 	FileConfig: defaultFileConfig,
 }
