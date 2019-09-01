@@ -5,10 +5,14 @@ import (
 	"github.com/zouxinjiang/le/config"
 	"github.com/zouxinjiang/le/pkgs/clog"
 	"github.com/zouxinjiang/le/routers"
+	"strconv"
 )
 
 func init() {
 	_ = config.Init()
+	show := config.GetConfig("FileConfig.LogConfig.ShowLevel")
+	level, _ := strconv.ParseInt(show, 10, 64)
+	clog.SetShowLevel(clog.LogLevel(level))
 }
 
 func main() {

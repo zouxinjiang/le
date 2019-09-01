@@ -1,4 +1,11 @@
+// +build linux
 package config
+
+import (
+	"os"
+	"os/signal"
+	"syscall"
+)
 
 var appBase = "/usr/local/le"
 

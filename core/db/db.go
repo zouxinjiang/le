@@ -5,6 +5,7 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/zouxinjiang/le/config"
+	"github.com/zouxinjiang/le/pkgs/clog"
 )
 
 var dbInstance *gorm.DB
@@ -18,11 +19,13 @@ func databaseString() string {
 		config.GetConfig("FileConfig.DatabaseConfig.UserName"),
 		config.GetConfig("FileConfig.DatabaseConfig.Password"),
 	)
+	clog.Println(clog.Lvl_Debug, ds)
 	return ds
 }
 
 func ConnectPg(ds ...string) (*gorm.DB, error) {
 	if len(ds) > 0 {
+		clog.Println(clog.Lvl_Debug, ds)
 		return gorm.Open("postgres", ds[0])
 	}
 	return gorm.Open("postgres", databaseString())
@@ -45,6 +48,8 @@ RECONNECT:
 			}
 			idx++
 			goto RECONNECT
+		} else {
+			dbInstance = tmpdb
 		}
 		db = tmpdb
 	}
@@ -58,5 +63,5 @@ RECONNECT:
 		idx++
 		goto RECONNECT
 	}
-	return dbInstance.New()
+	return db.New()
 }

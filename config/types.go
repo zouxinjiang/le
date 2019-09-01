@@ -32,6 +32,7 @@ type DatabaseConfig struct {
 }
 
 type LogConfig struct {
+	ShowLevel    uint64 `json:"ShowLevel"`
 	LogDir       string `json:"LogDir"`
 	BackupNumber int    `json:"BackupNumber"`
 	MaxSize      int    `json:"MaxSize"`

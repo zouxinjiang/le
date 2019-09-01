@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/zouxinjiang/le/pkgs/clog"
 	"github.com/zouxinjiang/le/pkgs/config"
 	"io/ioutil"
 	"os"
@@ -22,7 +23,9 @@ var defaultFileConfig = FileConfig{
 		UserName: "root",
 		Password: "123456",
 	},
-	LogConfig: LogConfig{},
+	LogConfig: LogConfig{
+		ShowLevel: uint64(clog.Lvl_Debug | clog.Lvl_Error | clog.Lvl_Info | clog.Lvl_Warning),
+	},
 	WeiXinConfig: WeiXinConfig{
 		AppId:  "wxec546224e7e2bb9c",
 		Secret: "c4dd1034019479945bf590c444f6a0fc",
@@ -44,7 +47,9 @@ func Init() error {
 	if os.IsNotExist(err) {
 		//文件不存在，则写一次文件
 		err := WriteConfig(appconf.FileConfig)
-		fmt.Println(err)
+		if err != nil {
+			clog.Println(clog.Lvl_Info, "写入配置文件:", err)
+		}
 	}
 	if err != nil {
 		return err
