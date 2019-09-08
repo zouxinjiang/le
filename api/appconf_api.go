@@ -76,7 +76,7 @@ func (self AppConfApi) GetBatch(key ...InnerAppConf) ([]models.AppConfMdl, error
 		return res, nil
 	}
 	sqlStr := `SELECT * FROM appconf WHERE state=1 AND name IN (?)`
-	db = db.Raw(sqlStr, key).First(&res)
+	db = db.Raw(sqlStr, key).Find(&res)
 	return res, db.Error
 }
 

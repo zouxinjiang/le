@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/zouxinjiang/le/pkgs/clog"
 	"net/http"
+	"reflect"
 
 	"github.com/labstack/echo/v4"
 	"github.com/zouxinjiang/le/pkgs/cerror"
@@ -10,6 +12,7 @@ import (
 )
 
 func AppErrorHandleFunc(err error, c echo.Context) {
+	clog.Println(clog.Lvl_Debug, err, reflect.TypeOf(err))
 	var (
 		code  = http.StatusInternalServerError
 		xcode interface{}

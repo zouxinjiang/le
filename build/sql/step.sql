@@ -4,7 +4,7 @@ CREATE TABLE "step" (
 	title TEXT,
 	stepnumber Integer,
 	description TEXT,
-	planstart TIMETZ,
-	planend TIMETZ,
+	planstart TIMESTAMPTZ,
+	planend TIMESTAMPTZ,
 	summary TEXT
 );

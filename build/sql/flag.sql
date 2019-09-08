@@ -3,7 +3,7 @@ CREATE TABLE "flag" (
 	userid INTEGER REFERENCES "user"(id) ON DELETE CASCADE,
 	name TEXT,
 	description TEXT,
-	createat TIMETZ,
-	updateat TIMETZ,
+	createat TIMESTAMPTZ,
+	updateat TIMESTAMPTZ,
 	summary TEXT
 );

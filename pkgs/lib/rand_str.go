@@ -8,8 +8,8 @@ import (
 func RandStr(length int) string {
 	var res string
 	var source = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < length; i++ {
-		rand.Seed(time.Now().UnixNano())
 		idx := rand.Int() % 36
 		res += string(source[idx])
 	}
@@ -19,8 +19,8 @@ func RandStr(length int) string {
 func RandNumberStr(length int) string {
 	var res string
 	var source = "0123456789"
+	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < length; i++ {
-		rand.Seed(time.Now().UnixNano())
 		idx := rand.Int() % 10
 		res += string(source[idx])
 	}

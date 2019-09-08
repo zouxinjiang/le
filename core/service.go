@@ -9,6 +9,25 @@ import (
 type Service struct {
 }
 
+func (s Service) Init() error {
+	_ = s.DbEng()
+	return nil
+}
+
+func (s Service) Install() error {
+	return nil
+}
+
+func (s Service) Start(params map[string]string) error {
+	return nil
+}
+
+func (s Service) Stop(params map[string]string) error {
+	return nil
+}
+
+//=================================公共部分==========================
+
 func (Service) DbEng() *gorm.DB {
 	res := db.OneInstance()
 	if res == nil {
@@ -33,19 +52,14 @@ func (Service) NewDbEngInstanceForce() (*gorm.DB, error) {
 	return res, err
 }
 
-func (s Service) Init() error {
-	_ = s.DbEng()
-	return nil
-}
-
-func (s Service) Install() error {
-	return nil
-}
-
-func (s Service) Start(params map[string]string) error {
-	return nil
-}
-
-func (s Service) Stop(params map[string]string) error {
-	return nil
+func (self Service) WrapDbErrorCode(err error) CustomErrorCode {
+	if IsDbErrorRecordNotFount(err) {
+		return ErrCode_RecordNotExist
+	} else if IsDbErrorUnique(err) {
+		return ErrCode_RecordExisted
+	} else if IsDbErrorForeignKey(err) {
+		return ErrCode_RecordExisted
+	} else {
+		return ErrCode_Unknown
+	}
 }

@@ -45,11 +45,11 @@ func (self Constraint) IsValid(val string) bool {
 				return false
 			}
 		case Cstr_DateTime:
-			if !self.checkDateTime(v, val) {
+			if val != "" && !self.checkDateTime(v, val) {
 				return false
 			}
 		case Cstr_Enum, Cstr_List:
-			if !self.checkEnum(v, val) {
+			if val != "" && !self.checkEnum(v, val) {
 				return false
 			}
 		case Cstr_Max:
@@ -57,7 +57,7 @@ func (self Constraint) IsValid(val string) bool {
 			if err != nil {
 				return false
 			}
-			if !self.checkMax(v, tmp) {
+			if tmp != 0 && !self.checkMax(v, tmp) {
 				return false
 			}
 		case Cstr_Min:
@@ -65,7 +65,7 @@ func (self Constraint) IsValid(val string) bool {
 			if err != nil {
 				return false
 			}
-			if !self.checkMin(v, tmp) {
+			if tmp != 0 && !self.checkMin(v, tmp) {
 				return false
 			}
 		case Cstr_Range:
@@ -73,11 +73,11 @@ func (self Constraint) IsValid(val string) bool {
 			if err != nil {
 				return false
 			}
-			if !self.checkRange(v, tmp) {
+			if tmp != 0 && !self.checkRange(v, tmp) {
 				return false
 			}
 		case Cstr_ValueType:
-			if !self.checkValueType(ConstraintValueTypeName(strings.ToLower(v)), val) {
+			if val != "" && !self.checkValueType(ConstraintValueTypeName(strings.ToLower(v)), val) {
 				return false
 			}
 		}

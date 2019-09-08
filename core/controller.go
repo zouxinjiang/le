@@ -44,3 +44,15 @@ func (self Controller) RespJsonWithCount(c echo.Context, data interface{}, count
 	}
 	return c.JSON(http.StatusOK, res)
 }
+
+func (self Controller) WrapDbErrorCode(err error) CustomErrorCode {
+	if IsDbErrorRecordNotFount(err) {
+		return ErrCode_RecordNotExist
+	} else if IsDbErrorUnique(err) {
+		return ErrCode_RecordExisted
+	} else if IsDbErrorForeignKey(err) {
+		return ErrCode_RecordExisted
+	} else {
+		return ErrCode_Unknown
+	}
+}

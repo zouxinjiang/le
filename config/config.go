@@ -31,13 +31,19 @@ var defaultFileConfig = FileConfig{
 		Secret: "c4dd1034019479945bf590c444f6a0fc",
 		Token:  "zxj123456",
 	},
+	EmailConfig: EmailConfig{
+		Host:     "smtp.qq.com",
+		Port:     25,
+		UserName: "123456789@qq.com",
+		Password: "xxxxxxxx",
+	},
 }
 
 var appconf = AppConfig{
 	MemoryConfig: MemoryConfig{
 		AppPath:        appBase,
 		ConfigFileName: "/config/config.json",
-		EncryptKey:     "life editor",
+		EncryptKey:     "le",
 		LoginKey:       "LE",
 	},
 	FileConfig: defaultFileConfig,

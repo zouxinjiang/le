@@ -9,7 +9,7 @@ type MemoryConfig struct {
 	AppPath        string // app根目录
 	ConfigFileName string //配置文件名
 	EncryptKey     string // 加密/混淆密码
-	LoginKey       string // 验证登陆信息的key。 登陆session的key和token认证的key
+	LoginKey       string // 验证登陆信息的字段名，session的名字。 登陆session的key和token认证的key
 }
 
 type FileConfig struct {
@@ -17,6 +17,7 @@ type FileConfig struct {
 	DatabaseConfig DatabaseConfig `json:"DatabaseConfig"`
 	LogConfig      LogConfig      `json:"LogConfig"`
 	WeiXinConfig   WeiXinConfig   `json:"WeiXinConfig"`
+	EmailConfig    EmailConfig    `json:"EmailConfig"`
 }
 
 type WebConfig struct {
@@ -44,4 +45,11 @@ type WeiXinConfig struct {
 	AppId  string `json:"AppId"`
 	Secret string `json:"Secret"`
 	Token  string `json:"Token"`
+}
+
+type EmailConfig struct {
+	Host     string `json:"Host"`
+	Port     uint   `json:"Port"`
+	UserName string `json:"UserName"`
+	Password string `json:"Password"`
 }

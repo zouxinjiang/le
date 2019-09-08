@@ -14,6 +14,6 @@ func newUnknownFactor() TwoFactor {
 	return new(UnknownFactor)
 }
 
-func (UnknownFactor) Do(params map[string]string) (string, error) {
-	return "unknown", errors.New("unknown two factor")
+func (UnknownFactor) Do(params map[string]string) (addr string, code string, err error) {
+	return "", "unknown", errors.New("unknown two factor")
 }

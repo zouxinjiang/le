@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/zouxinjiang/le/config"
 	"github.com/zouxinjiang/le/core"
@@ -10,6 +11,7 @@ import (
 	"github.com/zouxinjiang/le/pkgs/clog"
 	"github.com/zouxinjiang/le/pkgs/lib"
 	"github.com/zouxinjiang/le/pkgs/twofactor"
+	"strings"
 	"time"
 )
 
@@ -24,6 +26,12 @@ var (
 		Message: "invalid password",
 		Params:  nil,
 	}
+
+	ErrCode_InvalidOldPassword = core.CustomErrorCode{
+		Code:    "InvalidOldPassword",
+		Message: "invalid old password",
+		Params:  nil,
+	}
 	ErrCode_InvalidUserName = core.CustomErrorCode{
 		Code:    "InvalidUserName",
 		Message: "invalid username",
@@ -32,6 +40,11 @@ var (
 	ErrCode_TwoFactorError = core.CustomErrorCode{
 		Code:    "TwoFactorError",
 		Message: "two factor do something wrong",
+		Params:  nil,
+	}
+	ErrCode_TwoFactorWrong = core.CustomErrorCode{
+		Code:    "TwoFactorWrong",
+		Message: "two factor is not right",
 		Params:  nil,
 	}
 )
@@ -72,43 +85,59 @@ func (self UserApi) GetUserById(id int64) (models.UserMdl, error) {
 	return res, db.Error
 }
 
-func (self UserApi) AuthenticationUserPassword(userName, password string) (map[twofactor.TwoFactorType]string, bool, error) {
-	var tf = map[twofactor.TwoFactorType]string{}
+func (self UserApi) AuthenticationUserPassword(userName, password string) (map[twofactor.TwoFactorType]map[string]interface{}, bool, error) {
+	var fdatatf = map[twofactor.TwoFactorType]map[string]interface{}{}
 	var need = false
 	user, err := self.GetUserByUserName(userName)
 	if err != nil {
-		return tf, false, err
+		return fdatatf, false, err
 	}
 	if user.Id == 0 {
-		return tf, false, cerror.NewJsonErrorWithParams(core.ErrCode_RecordNotExist, map[string]interface{}{
+		return fdatatf, false, cerror.NewJsonErrorWithParams(core.ErrCode_RecordNotExist, map[string]interface{}{
 			"record": fmt.Sprintf("username=%s", userName),
 		})
 	}
 
 	if lib.Hmac256X(password, config.GetConfig("MemoryConfig.EncryptKey")) != string(user.Password) {
-		return tf, false, cerror.NewJsonErrorWithParams(ErrCode_AuthFailed, map[string]interface{}{
+		return fdatatf, false, cerror.NewJsonErrorWithParams(ErrCode_AuthFailed, map[string]interface{}{
 			"reason": "invalid password",
 		})
 	}
-	tfparams := map[string]string{}
-
-	tf = self.GetTwoFactor(userName)
-	if len(tf) == 0 {
-		return tf, false, nil
+	tfparams := map[string]string{
+		"UserName": config.GetConfig("FileConfig.EmailConfig.UserName"),
+		"Host":     config.GetConfig("FileConfig.EmailConfig.Host"),
+		"Port":     config.GetConfig("FileConfig.EmailConfig.Port"),
+		"Password": config.GetConfig("FileConfig.EmailConfig.Password"),
+		"from":     "[LE]",
+		"to":       user.Email,
 	}
-	successTf := map[twofactor.TwoFactorType]string{}
-	var tfodr = []twofactor.TwoFactorType{"email"}
+
+	tf := self.GetTwoFactor(userName)
+	if len(tf) == 0 {
+		return fdatatf, false, nil
+	}
+	var tfodr = []twofactor.TwoFactorType{"email", "imagecode"}
 	for _, v := range tfodr {
-		token, ok := tf[v]
+		_, ok := tf[v]
 		if !ok {
+			clog.Debug(tf, v)
 			continue
 		}
-		res, err := twofactor.New(v).Do(tfparams)
+		var code = lib.RandNumberStr(6)
+		tfparams["code"] = code
+		addr, res, err := twofactor.New(v).Do(tfparams)
 		if err != nil {
-			clog.Println(clog.Lvl_Error, string(v), " do some thing error:", err)
+			clog.Error(v, " something went wrong:", err)
 			continue
 		}
-		successTf[v] = token
+		token := lib.RandStr(32)
+		// 写入返回值结果
+		fdatatf[v] = map[string]interface{}{
+			"Token":   token,
+			"Address": addr,
+		}
+		// 记录code，后续认证使用到
+		tf[v] = addr
 		need = true
 		_ = tfcache.Set(token, twoFactorItem{
 			tfType:   v,
@@ -116,10 +145,10 @@ func (self UserApi) AuthenticationUserPassword(userName, password string) (map[t
 			username: userName,
 		}, time.Minute*5)
 	}
-	if len(successTf) == 0 {
-		return successTf, true, cerror.NewJsonError(ErrCode_TwoFactorError)
+	if len(fdatatf) == 0 {
+		return fdatatf, true, cerror.NewJsonError(ErrCode_TwoFactorError)
 	}
-	return tf, need, err
+	return fdatatf, need, err
 }
 
 func (self UserApi) GetTwoFactor(userName string) map[twofactor.TwoFactorType]string {
@@ -135,9 +164,12 @@ func (self UserApi) GetTwoFactor(userName string) map[twofactor.TwoFactorType]st
 				fdata = map[twofactor.TwoFactorType]string{}
 				break
 			}
+			continue
 		}
 		if v.Value == "1" {
-			fdata[v.Name] = v.Value
+			if tmp := strings.Split(v.Name, "."); len(tmp) >= 3 {
+				fdata[tmp[2]] = v.Value
+			}
 		}
 	}
 	return fdata
@@ -153,4 +185,79 @@ func (self UserApi) AuthenticationTwoFactor(userName, token string, factor strin
 		return true
 	}
 	return false
+}
+
+func (self UserApi) AddUser(username, name, password, email, mobile string) error {
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	u, _ := self.GetUserByUserName(username)
+	if u.Id != 0 {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_RecordExisted, map[string]interface{}{
+			"record": fmt.Sprintf(" user username=%s ", username),
+		})
+	}
+	sqlStr := `INSERT INTO "user"(username,name,pwd,mobile,email,state,createat,updateat) VALUES (?,?,?,?,?,?,?,?)`
+	pwd := lib.Hmac256X(password, config.GetConfig("MemoryConfig.EncryptKey"))
+	db = db.Exec(sqlStr, username, name, pwd, mobile, email, 1, time.Now(), time.Now())
+	return db.Error
+}
+
+func (self UserApi) UpdateUser(uid int64, info map[string]interface{}) error {
+	var keyMap = map[string]string{
+		"Name":     "name",
+		"Mobile":   "mobile",
+		"Email":    "email",
+		"UpdateAt": "updateat",
+	}
+
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	sqlStr := `UPDATE "user" SET ${field} WHERE id=?`
+	var fields = []string{}
+	var vals = []interface{}{}
+	if len(info) > 0 {
+		info["UpdateAt"] = time.Now()
+	}
+
+	for k, v := range info {
+		f1, ok := keyMap[k]
+		if !ok {
+			continue
+		}
+		fields = append(fields, fmt.Sprintf("%s=?", f1))
+		vals = append(vals, v)
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	sqlStr = strings.ReplaceAll(sqlStr, "${field}", strings.Join(fields, ","))
+	vals = append(vals, uid)
+	db = db.Exec(sqlStr, vals...)
+	return db.Error
+}
+
+func (self UserApi) ChangeUserPassword(uid int64, oldPwd, newPwd string) error {
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	u, err := self.GetUserById(uid)
+	if core.IsDbErrorRecordNotFount(err) || u.Id == 0 {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_RecordNotExist, map[string]interface{}{
+			"record": fmt.Sprintf(" user id=%d", uid),
+		})
+	}
+	old := lib.Hmac256X(oldPwd, config.GetConfig("MemoryConfig.EncryptKey"))
+	if !bytes.Equal(u.Password, []byte(old)) {
+		return cerror.NewJsonError(ErrCode_InvalidOldPassword)
+	}
+
+	newPassword := lib.Hmac256X(newPwd, config.GetConfig("MemoryConfig.EncryptKey"))
+	sqlStr := `UPDATE "user" SET pwd=?,updateat=? WHERE id=?`
+	db = db.Exec(sqlStr, newPassword, time.Now(), uid)
+	return db.Error
 }

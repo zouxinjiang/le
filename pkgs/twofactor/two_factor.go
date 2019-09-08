@@ -1,7 +1,7 @@
 package twofactor
 
 type TwoFactor interface {
-	Do(params map[string]string) (string, error)
+	Do(params map[string]string) (addr string, code string, err error)
 }
 
 type TwoFactorType = string
@@ -16,7 +16,7 @@ func register(name TwoFactorType, value func() TwoFactor) {
 
 func New(name TwoFactorType) TwoFactor {
 	f, ok := tfmap[name]
-	if ok {
+	if !ok {
 		return tfmap["unknown"]()
 	}
 	return f()

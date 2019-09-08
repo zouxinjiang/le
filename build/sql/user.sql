@@ -8,8 +8,8 @@ CREATE TABLE "user"(
 	email TEXT UNIQUE,
 	uuid TEXT UNIQUE,
 	state INTEGER,
-	locktime TIMETZ,
+	locktime TIMESTAMPTZ,
 	lockreason TEXT,
-	createat TIMETZ,
-	updateat TIMETZ
+	createat TIMESTAMPTZ,
+	updateat TIMESTAMPTZ
 );

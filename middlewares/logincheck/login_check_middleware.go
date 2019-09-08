@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ErrCode_PermissionDeny = core.CustomErrorCode{
-		Code:    "PermissionDeny",
+	ErrCode_UserNeedLogin = core.CustomErrorCode{
+		Code:    "UserNeedLogin",
 		Message: "user need login",
 		Params:  nil,
 	}
@@ -44,14 +44,14 @@ func LoginCheckMiddle(hf echo.HandlerFunc) echo.HandlerFunc {
 			sess, err := session.Get(loginKeyWord, c)
 			if err != nil {
 				errFunc = func() error {
-					return cerror.NewJsonError(ErrCode_PermissionDeny)
+					return cerror.NewJsonError(ErrCode_UserNeedLogin)
 				}
 			}
 			var ok bool
 			loginUser, ok = sess.Values["LoginUser"].(types.UserSession)
 			if !ok {
 				errFunc = func() error {
-					return cerror.NewJsonError(ErrCode_PermissionDeny)
+					return cerror.NewJsonError(ErrCode_UserNeedLogin)
 				}
 			} else {
 				sess.Options = &sessions.Options{

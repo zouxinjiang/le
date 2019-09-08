@@ -3,18 +3,19 @@ package constraint
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 )
 
 func Valid(data interface{}) (err error) {
-	// defer func() {
-	// 	// 程序中出错，则不检查约束
-	// 	if e := recover(); e != nil {
-	// 		log.Println("验证字段:", e)
-	// 		err = nil
-	// 	}
-	// }()
+	defer func() {
+		// 程序中出错，则不检查约束
+		if e := recover(); e != nil {
+			log.Println("验证字段:", e)
+			err = nil
+		}
+	}()
 
 	val := reflect.ValueOf(data)
 	ty := reflect.TypeOf(data)

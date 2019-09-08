@@ -16,21 +16,34 @@ import (
 	"time"
 )
 
+type LoginController struct {
+	core.Controller
+}
+
 var (
 	ErrCode_TokenExpired = core.CustomErrorCode{
 		Code:    "TokenExpired",
 		Message: "token has expired",
 		Params:  nil,
 	}
+
+	TokenCache          = cache.NewCache("memory")
+	userinfoCache       = cache.NewCache("memory")
+	tokenExpireInterval = 60 * 30
 )
 
-var tokenExpireInterval = 60 * 30
-
-var TokenCache = cache.NewCache("memory")
-var userinfoCache = cache.NewCache("memory")
-
-type LoginController struct {
-	core.Controller
+func (self LoginController) SetLoginInfo(c echo.Context, userinfo types.UserSession, timeout int, token string) error {
+	var loginKeyWord = config.GetConfig("MemoryConfig.LoginKey")
+	//写session,写token
+	sess, _ := session.Get(loginKeyWord, c)
+	sess.Options = &sessions.Options{
+		Path:   "/",
+		MaxAge: timeout,
+	}
+	sess.Values["LoginUser"] = userinfo
+	_ = sess.Save(c.Request(), c.Response())
+	_ = TokenCache.Set(token, userinfo, time.Duration(timeout)*time.Second)
+	return nil
 }
 
 func Token2UserSession(token string) (types.UserSession, error) {
@@ -47,20 +60,6 @@ func FlushTokenExpireTime(token string) {
 	if _, ok := val.(types.UserSession); ok {
 		_ = TokenCache.Set(token, val, time.Duration(tokenExpireInterval)*time.Second)
 	}
-}
-
-func (self LoginController) SetLoginInfo(c echo.Context, userinfo types.UserSession, timeout int, token string) error {
-	var loginKeyWord = config.GetConfig("MemoryConfig.LoginKey")
-	//写session,写token
-	sess, _ := session.Get(loginKeyWord, c)
-	sess.Options = &sessions.Options{
-		Path:   "/",
-		MaxAge: timeout,
-	}
-	sess.Values["LoginUser"] = userinfo
-	_ = sess.Save(c.Request(), c.Response())
-	_ = TokenCache.Set(token, userinfo, time.Duration(timeout)*time.Second)
-	return nil
 }
 
 func (self LoginController) AuthenticationUser(c echo.Context) error {
@@ -80,7 +79,9 @@ func (self LoginController) AuthenticationUser(c echo.Context) error {
 	userApi := api.UserApi{}
 	userInfo, err := userApi.GetUserByUserName(params.UserName)
 	if err != nil {
-		return err
+		return cerror.NewJsonErrorWithParams(self.WrapDbErrorCode(err), map[string]interface{}{
+			"record": params.UserName,
+		})
 	}
 	if userInfo.Id == 0 {
 		return cerror.NewJsonErrorWithParams(core.ErrCode_RecordNotExist, map[string]interface{}{
@@ -96,14 +97,17 @@ func (self LoginController) AuthenticationUser(c echo.Context) error {
 		LoginTime: time.Now(),
 	}
 	var loginTimeout = tokenExpireInterval
-	var token = lib.RandStr(36)
 	if len(tf) == 0 {
+		var token = lib.RandStr(36)
 		_ = self.SetLoginInfo(c, loginUser, loginTimeout, token)
-		return self.RespJson(c, nil)
+		return self.RespJson(c, map[string]interface{}{
+			"Token": token,
+		})
 	}
-	_ = userinfoCache.Set(token, loginUser, time.Minute*5)
+	for _, v := range tf {
+		_ = userinfoCache.Set(fmt.Sprint(v["Token"]), loginUser, time.Minute*5)
+	}
 	return self.RespJson(c, map[string]interface{}{
-		"Token":     token,
 		"TwoFactor": tf,
 	})
 }
@@ -134,5 +138,30 @@ func (self LoginController) AuthenticationTwoFactor(c echo.Context) error {
 			"Token": token,
 		})
 	}
-	return cerror.NewJsonError(api.ErrCode_TwoFactorError)
+	return cerror.NewJsonError(api.ErrCode_TwoFactorWrong)
+}
+
+func (self LoginController) Register(c echo.Context) error {
+	var params = struct {
+		UserName string `json:"UserName" form:"UserName" query:"UserName" constraint:"required"`
+		Password string `json:"Password" form:"Password" query:"Password" constraint:"required"`
+		Name     string `json:"Name" form:"Name" query:"Name"`
+		Email    string `json:"Email" form:"Email" query:"Email" constraint:"type:email"`
+		Mobile   string `json:"Mobile" form:"Mobile" query:"Mobile" constraint:"type:mobile"`
+	}{}
+	if err := c.Bind(&params); err != nil {
+		return cerror.NewJsonError(core.ErrCode_InvalidParams)
+	}
+	if err := constraint.Valid(&params); err != nil {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_InvalidParam, map[string]interface{}{
+			"field":  err.Error(),
+			"reason": "value is not right",
+		})
+	}
+	userApi := api.UserApi{}
+	err := userApi.AddUser(params.UserName, params.Name, params.Password, params.Email, params.Mobile)
+	if err != nil {
+		return err
+	}
+	return self.RespJson(c, "")
 }
