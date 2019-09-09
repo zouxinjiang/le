@@ -1,5 +1,6 @@
 CREATE TABLE "user"(
 	id SERIAL PRIMARY KEY,
+	type TEXT,
 	username TEXT UNIQUE,
 	icon TEXT,
 	name TEXT,

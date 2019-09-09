@@ -12,7 +12,9 @@ import (
 	"github.com/zouxinjiang/le/pkgs/cerror"
 	"github.com/zouxinjiang/le/pkgs/constraint"
 	"github.com/zouxinjiang/le/pkgs/lib"
+	"github.com/zouxinjiang/le/pkgs/weixin"
 	"github.com/zouxinjiang/le/types"
+	"strings"
 	"time"
 )
 
@@ -164,4 +166,143 @@ func (self LoginController) Register(c echo.Context) error {
 		return err
 	}
 	return self.RespJson(c, "")
+}
+
+func (self LoginController) ForgetPassword(c echo.Context) error {
+	var params = struct {
+		UserName string `json:"UserName" form:"UserName" query:"UserName"`
+		Email    string `json:"Email" form:"Email" query:"Email" constraint:"type:email;required"`
+	}{}
+	if err := c.Bind(&params); err != nil {
+		return cerror.NewJsonError(core.ErrCode_InvalidParams)
+	}
+	if err := constraint.Valid(&params); err != nil {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_InvalidParam, map[string]interface{}{
+			"field":  err.Error(),
+			"reason": "value is required or invalid",
+		})
+	}
+	userApi := api.UserApi{}
+	user, err := userApi.GetUserByUserName(params.UserName)
+	if core.IsDbErrorRecordNotFount(err) {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_RecordNotExist, map[string]interface{}{
+			"record": fmt.Sprintf("user username=%s", params.UserName),
+		})
+	}
+	if user.Email != "" && user.Email == params.Email {
+		// 邮箱验证通过，将验证码发到邮箱
+		fdata, err := userApi.SendTwoFactor("email", map[string]string{
+			"UserName": params.UserName,
+			"To":       params.Email,
+		})
+		if err != nil {
+			return cerror.NewJsonError(api.ErrCode_TwoFactorError)
+		}
+		return self.RespJson(c, fdata)
+	}
+	return cerror.NewJsonErrorWithParams(core.ErrCode_InvalidParam, map[string]interface{}{
+		"field":  "Email",
+		"reason": "value is required",
+	})
+}
+
+func (self LoginController) ResetPassword(c echo.Context) error {
+	var params = struct {
+		Token       string `json:"Token" form:"Token" query:"Token" constraint:"required"`
+		VerifyCode  string `json:"VerifyCode" form:"VerifyCode" query:"VerifyCode" constraint:"required"`
+		NewPassword string `json:"NewPassword" form:"NewPassword" query:"NewPassword" constraint:"required"`
+	}{}
+	if err := c.Bind(&params); err != nil {
+		return cerror.NewJsonError(core.ErrCode_InvalidParams)
+	}
+	if err := constraint.Valid(&params); err != nil {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_InvalidParam, map[string]interface{}{
+			"field":  err.Error(),
+			"reason": "value is required",
+		})
+	}
+	userApi := api.UserApi{}
+	info, err := userApi.ValidateTwoFactor(params.Token, params.VerifyCode)
+	user, _ := userApi.GetUserByUserName(info.Username)
+	if err != nil {
+		return err
+	}
+	err = userApi.ResetUserPassword(user.Id, params.NewPassword)
+	if err != nil {
+		return err
+	}
+	return self.RespJson(c, "")
+}
+
+func (self LoginController) WeChatLogin(c echo.Context) error {
+	var params = struct {
+		FailUrl    string `json:"FailUrl" form:"FailUrl" query:"FailUrl"`
+		SuccessUrl string `json:"SuccessUrl" form:"SuccessUrl" query:"SuccessUrl"`
+		Code       string `json:"Code" form:"Code" query:"Code"`
+		State      string `json:"State" form:"State" query:"State"`
+	}{}
+	if err := c.Bind(&params); err != nil {
+		return cerror.NewJsonError(core.ErrCode_InvalidParams)
+	}
+	wx := weixin.New(config.GetConfig("FileConfig.WeiXinConfig.AppId"), config.GetConfig("FileConfig.WeiXinConfig.Secret"))
+	ak, err := wx.WebAuthorize.Code2AccessToken(params.Code)
+	if err != nil {
+		if strings.Contains(params.FailUrl, "?") {
+			params.SuccessUrl += "&ErrorMessage=" + err.Error()
+		} else {
+			params.FailUrl += "?ErrorMessage=" + err.Error()
+		}
+		return c.Redirect(302, params.FailUrl)
+	}
+	userinfo, err := wx.GetUserInfo(ak)
+	if err != nil {
+		if strings.Contains(params.FailUrl, "?") {
+			params.FailUrl += "&ErrorMessage=" + err.Error()
+		} else {
+			params.FailUrl += "?ErrorMessage=" + err.Error()
+		}
+		return c.Redirect(302, params.FailUrl)
+	}
+	userApi := api.UserApi{}
+	//查找用户是否存在
+	user, _ := userApi.GetUserByUuid(userinfo.OpenId)
+	if user.Id == 0 {
+		//注册，然后返回登陆信息
+		uname := lib.RandStr(10)
+		err := userApi.AddWeiXinUser("wx_"+uname, userinfo.OpenId, userinfo.NickName, "123456", "", "")
+		if err != nil {
+			if strings.Contains(params.FailUrl, "?") {
+				params.FailUrl += "&ErrorMessage=" + err.Error()
+			} else {
+				params.FailUrl += "?ErrorMessage=" + err.Error()
+			}
+			return c.Redirect(302, params.FailUrl)
+		}
+
+		user, _ = userApi.GetUserByUuid(userinfo.OpenId)
+	}
+	if user.Id == 0 {
+		if strings.Contains(params.FailUrl, "?") {
+			params.FailUrl += "&ErrorMessage=" + "user login failed"
+		} else {
+			params.FailUrl += "?ErrorMessage=" + "user login failed"
+		}
+		return c.Redirect(302, params.FailUrl)
+	}
+	// 更新头像地址
+	_ = userApi.UpdateUserIcon(user.Id, userinfo.HeadImgUrl)
+	//产生token，生成session
+	var token = lib.RandStr(36)
+	loginUser := types.UserSession{
+		UserName:  user.Username,
+		LoginTime: time.Now(),
+	}
+	var loginTimeout = tokenExpireInterval
+	_ = self.SetLoginInfo(c, loginUser, loginTimeout, token)
+	if strings.Contains(params.SuccessUrl, "?") {
+		params.SuccessUrl += "&Token=" + token
+	} else {
+		params.SuccessUrl += "?Token=" + token
+	}
+	return c.Redirect(302, params.SuccessUrl)
 }

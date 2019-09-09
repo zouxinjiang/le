@@ -1,8 +1,8 @@
 package weixin
 
 import (
-	"cooker/pkgs/weixin/gongzhonghao"
-	"cooker/pkgs/weixin/web"
+	"github.com/zouxinjiang/le/pkgs/weixin/gongzhonghao"
+	"github.com/zouxinjiang/le/pkgs/weixin/web"
 )
 
 type WeiXin struct {

@@ -50,9 +50,9 @@ var (
 )
 
 type twoFactorItem struct {
-	tfType   twofactor.TwoFactorType
-	val      string
-	username string
+	TfType   twofactor.TwoFactorType
+	Val      string
+	Username string
 }
 
 var (
@@ -82,6 +82,17 @@ func (self UserApi) GetUserById(id int64) (models.UserMdl, error) {
 	}
 	sqlStr := `SELECT * FROM "user" WHERE id=?`
 	db = db.Raw(sqlStr, id).First(&res)
+	return res, db.Error
+}
+
+func (self UserApi) GetUserByUuid(uuid string) (models.UserMdl, error) {
+	var res = models.UserMdl{}
+	db := self.DbEng()
+	if db == nil {
+		return res, cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	sqlStr := `SELECT * FROM "user" WHERE uuid=?`
+	db = db.Raw(sqlStr, uuid).First(&res)
 	return res, db.Error
 }
 
@@ -140,9 +151,9 @@ func (self UserApi) AuthenticationUserPassword(userName, password string) (map[t
 		tf[v] = addr
 		need = true
 		_ = tfcache.Set(token, twoFactorItem{
-			tfType:   v,
-			val:      res,
-			username: userName,
+			TfType:   v,
+			Val:      res,
+			Username: userName,
 		}, time.Minute*5)
 	}
 	if len(fdatatf) == 0 {
@@ -181,7 +192,7 @@ func (self UserApi) AuthenticationTwoFactor(userName, token string, factor strin
 		return false
 	}
 	cacheFactor := val.(twoFactorItem)
-	if cacheFactor.val == factor {
+	if cacheFactor.Val == factor {
 		return true
 	}
 	return false
@@ -198,9 +209,26 @@ func (self UserApi) AddUser(username, name, password, email, mobile string) erro
 			"record": fmt.Sprintf(" user username=%s ", username),
 		})
 	}
-	sqlStr := `INSERT INTO "user"(username,name,pwd,mobile,email,state,createat,updateat) VALUES (?,?,?,?,?,?,?,?)`
+	sqlStr := `INSERT INTO "user"(type,username,name,pwd,mobile,email,state,createat,updateat) VALUES (?,?,?,?,?,?,?,?,?)`
 	pwd := lib.Hmac256X(password, config.GetConfig("MemoryConfig.EncryptKey"))
-	db = db.Exec(sqlStr, username, name, pwd, mobile, email, 1, time.Now(), time.Now())
+	db = db.Exec(sqlStr, "local", username, name, pwd, mobile, email, 1, time.Now(), time.Now())
+	return db.Error
+}
+
+func (self UserApi) AddWeiXinUser(username, uuid, name, password, email, mobile string) error {
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	u, _ := self.GetUserByUserName(username)
+	if u.Id != 0 {
+		return cerror.NewJsonErrorWithParams(core.ErrCode_RecordExisted, map[string]interface{}{
+			"record": fmt.Sprintf(" user username=%s ", username),
+		})
+	}
+	sqlStr := `INSERT INTO "user"(type,uuid,username,name,pwd,mobile,email,state,createat,updateat) VALUES (?,?,?,?,?,?,?,?,?,?)`
+	pwd := lib.Hmac256X(password, config.GetConfig("MemoryConfig.EncryptKey"))
+	db = db.Exec(sqlStr, "wechat", uuid, username, name, pwd, mobile, email, 1, time.Now(), time.Now())
 	return db.Error
 }
 
@@ -240,6 +268,16 @@ func (self UserApi) UpdateUser(uid int64, info map[string]interface{}) error {
 	return db.Error
 }
 
+func (self UserApi) UpdateUserIcon(uid int64, url string) error {
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	sqlStr := `UPDATE "user" SET icon=? WHERE id=?`
+	db = db.Exec(sqlStr, url, uid)
+	return db.Error
+}
+
 func (self UserApi) ChangeUserPassword(uid int64, oldPwd, newPwd string) error {
 	db := self.DbEng()
 	if db == nil {
@@ -259,5 +297,62 @@ func (self UserApi) ChangeUserPassword(uid int64, oldPwd, newPwd string) error {
 	newPassword := lib.Hmac256X(newPwd, config.GetConfig("MemoryConfig.EncryptKey"))
 	sqlStr := `UPDATE "user" SET pwd=?,updateat=? WHERE id=?`
 	db = db.Exec(sqlStr, newPassword, time.Now(), uid)
+	return db.Error
+}
+
+func (self UserApi) SendTwoFactor(tpy twofactor.TwoFactorType, params map[string]string) (fdata map[twofactor.TwoFactorType]map[string]string, err error) {
+	username := params["UserName"]
+	to := params["To"]
+
+	tfparams := map[string]string{
+		"UserName": config.GetConfig("FileConfig.EmailConfig.UserName"),
+		"Host":     config.GetConfig("FileConfig.EmailConfig.Host"),
+		"Port":     config.GetConfig("FileConfig.EmailConfig.Port"),
+		"Password": config.GetConfig("FileConfig.EmailConfig.Password"),
+		"from":     "[LE]",
+		"to":       to,
+	}
+	addr, res, err := twofactor.New(tpy).Do(tfparams)
+	if err != nil {
+		clog.Error(" something went wrong:", err)
+		return nil, err
+	}
+	token := lib.RandStr(32)
+	// 写入返回值结果
+	fdata[tpy] = map[string]string{
+		"Token":   token,
+		"Address": addr,
+	}
+	// 记录code，后续认证使用到
+	_ = tfcache.Set(token, twoFactorItem{
+		TfType:   tpy,
+		Val:      res,
+		Username: username,
+	}, time.Minute*5)
+	return fdata, nil
+}
+
+func (self UserApi) ValidateTwoFactor(token, factor string) (twoFactorItem, error) {
+	res := twoFactorItem{}
+	val := tfcache.Get(token)
+	if val == nil {
+		return res, cerror.NewJsonError(ErrCode_TwoFactorWrong)
+	}
+	cacheFactor := val.(twoFactorItem)
+	if cacheFactor.Val == factor {
+		return res, nil
+	}
+	res = cacheFactor
+	return res, cerror.NewJsonError(ErrCode_TwoFactorWrong)
+}
+
+func (self UserApi) ResetUserPassword(uid int64, newPassword string) error {
+	db := self.DbEng()
+	if db == nil {
+		return cerror.NewJsonError(core.ErrCode_DbConnectFailed)
+	}
+	newpwd := lib.Hmac256X(newPassword, config.GetConfig("MemoryConfig.EncryptKey"))
+	sqlStr := `UPDATE "user" SET pwd=?,updateat=? WHERE id=?`
+	db = db.Exec(sqlStr, newpwd, time.Now(), uid)
 	return db.Error
 }

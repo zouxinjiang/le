@@ -15,12 +15,16 @@ func Init(e *echo.Echo) {
 
 	registerModule(commonCtl, appConfCtl, loginCtl, userCtl)
 
-	e.GET("/Common/WeChat/ApiCheck", commonCtl.WeiXinApiCheck)
 	e.GET("/Config/AppConfig", appConfCtl.GetAppConfig, logincheck.LoginCheckMiddle)
 	e.PATCH("/Config/AppConfig", appConfCtl.SetAppConfig, logincheck.LoginCheckMiddle)
+
+	e.Any("/Common/WeChat/ApiCheck", commonCtl.WeiXinApiCheck)
+	e.Any("/User/WeChat/Login", loginCtl.WeChatLogin)
 	e.POST("/User/Authentication", loginCtl.AuthenticationUser)
 	e.POST("/User/AuthenticationTwoFactor", loginCtl.AuthenticationTwoFactor)
 	e.POST("/User/Register", loginCtl.Register)
+	e.POST("/User/ForgetPassword", loginCtl.ForgetPassword)
+	e.POST("/User/ResetPassword", loginCtl.ResetPassword)
 
 	e.GET("/User/MyInfo", userCtl.GetMyInfo, logincheck.LoginCheckMiddle)
 	e.PATCH("/User/MyInfo", userCtl.UpdateUserInfo, logincheck.LoginCheckMiddle)

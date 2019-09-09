@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"cooker/pkgs/clog"
+	"github.com/zouxinjiang/le/pkgs/clog"
 )
 
 func (self *GongZhongHao) SetIndustry(primaryCode, SecondaryCode string) error {
